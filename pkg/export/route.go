@@ -6,6 +6,7 @@ package export
 import (
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 
 	"github.com/gogo/protobuf/proto"
@@ -31,6 +32,8 @@ const (
 )
 
 var errUnsupportedType = errors.New("route type is not supported")
+
+var channelRegExp = regexp.MustCompile(`^\/?channels\/([\w\-]+)(\/[^?]*)?(\?.*)?$`)
 
 // Route - message route, tells which nats topic messages goes to which mqtt topic.
 // Later we can add direction and other combination like ( nats-nats).
@@ -93,7 +96,19 @@ func (r *Route) Consume() {
 		if r.Subtopic != "" {
 			topic = fmt.Sprintf("%s/%s", r.MqttTopic, r.Subtopic)
 		}
-		topic = fmt.Sprintf("%s/%s", topic, strings.ReplaceAll(msg.Subject, ".", "/"))
+		if r.Type == "mfx" {
+			msg.Subject = strings.Replace(msg.Subject, ".", "/", -1)
+			channelParts := channelRegExp.FindStringSubmatch(msg.Subject)
+			if len(channelParts) < 2 {
+				fmt.Printf("Error in mqtt publish")
+				return
+			}
+			subtopic := channelParts[2]
+			topic = fmt.Sprintf("%s%s", topic, subtopic)
+		} else {
+			topic = fmt.Sprintf("%s/%s", topic, strings.ReplaceAll(msg.Subject, ".", "/"))
+		}
+
 		if err := r.pub.Publish(msg.Subject, topic, payload); err != nil {
 			r.logger.Error(fmt.Sprintf("Failed to publish on route %s: %s", r.MqttTopic, err))
 		}

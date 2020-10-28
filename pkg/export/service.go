@@ -114,7 +114,8 @@ func (e *exporter) newRoute(r config.Route) Route {
 }
 
 func (e *exporter) Subscribe(nc *nats.Conn) {
-	for _, r := range e.consumers {
+	for k := range e.consumers {
+		r := e.consumers[k]
 		_, err := nc.ChanQueueSubscribe(r.NatsTopic, exportGroup, r.Messages)
 		if err != nil {
 			e.logger.Error(fmt.Sprintf("Failed to subscribe to NATS %s: %s", r.NatsTopic, err))
